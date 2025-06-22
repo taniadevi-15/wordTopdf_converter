@@ -1,66 +1,56 @@
 const express = require("express");
 const multer = require("multer");
 const cors = require("cors");
-const docxConverter = require("docx-pdf");
 const path = require("path");
 const fs = require("fs");
+const { exec } = require("child_process");
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 8000;
 
-// Ensure 'files' and 'uploads' directories exist
-["files", "uploads"].forEach(dir => {
+// Create folders if not exist
+["uploads", "files"].forEach(dir => {
     const fullPath = path.join(__dirname, dir);
-    if (!fs.existsSync(fullPath)) {
-        fs.mkdirSync(fullPath);
-    }
+    if (!fs.existsSync(fullPath)) fs.mkdirSync(fullPath);
 });
 
 app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// Multer storage
+// Multer config
 const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, 'uploads');
-    },
-    filename: function (req, file, cb) {
-        cb(null, file.originalname);
-    }
+    destination: (req, file, cb) => cb(null, "uploads"),
+    filename: (req, file, cb) => cb(null, file.originalname)
 });
-
 const upload = multer({ storage });
 
-// API route
+// Convert endpoint
 app.post("/convertFile", upload.single("file"), (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ message: "No file uploaded" });
-    }
+    const inputPath = path.join(__dirname, req.file.path);
+    const outputDir = path.join(__dirname, "files");
 
-    const outputPath = path.join(__dirname, "files", `${path.parse(req.file.originalname).name}.pdf`);
+    const libreOfficePath = `"C:\\Program Files\\LibreOffice\\program\\soffice.exe"`; // ✅ your path
+    const command = `${libreOfficePath} --headless --convert-to pdf --outdir "${outputDir}" "${inputPath}"`;
 
-    docxConverter(req.file.path, outputPath, (err, result) => {
-        if (err) {
-            console.error("Conversion Error:", err);
-            return res.status(500).json({ message: "Error converting docx to pdf" });
+    exec(command, (error, stdout, stderr) => {
+        if (error) {
+            console.error("❌ Conversion failed:", error);
+            return res.status(500).json({ message: "Conversion failed" });
         }
 
+        const pdfFilename = path.parse(req.file.originalname).name + ".pdf";
+        const outputPath = path.join(outputDir, pdfFilename);
+
         res.download(outputPath, () => {
-            console.log("File downloaded");
+            console.log("✅ File downloaded");
+
+            // Cleanup
+            fs.unlinkSync(inputPath);
+            fs.unlinkSync(outputPath);
         });
     });
 });
 
-// ✅ Serve frontend static files
-const frontendPath = path.join(__dirname, "../Frontend/dist");
-app.use(express.static(frontendPath));
-
-// ✅ Catch-all route for React
-app.get("*", (req, res) => {
-    res.sendFile(path.join(frontendPath, "index.html"));
-});
-
 app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
+    console.log(`🚀 Server running on http://localhost:${port}`);
 });
