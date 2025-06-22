@@ -8,7 +8,7 @@ const Footer = () => {
     />
     <h1 className='text-center
     py-3 text-sm 
-    '>Copyright @2025 - All right reserved by ACME industries LTD</h1>
+    '>Copyright @2025 - Tania Devi</h1>
    </div>
    </>
   )
